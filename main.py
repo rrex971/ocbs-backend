@@ -29,15 +29,15 @@ app = FastAPI()
 
 origins = [
     "http://localhost:5173",
-    "https://ocbs.rrex.cc"  # allow requests from your React frontend
+    "https://ocbs.rrex.cc"  
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
     expose_headers=["Content-Range"],
     max_age=3600,
 )
