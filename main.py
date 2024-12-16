@@ -52,7 +52,7 @@ async def loginFlow(apiId: str, code: str):
     
     auth = AuthHandler(client_id, client_secret, redirect_url, Scope.identify())
     print(code)
-    if code != None or code != "":
+    if code != None and code != "":
         auth.get_auth_token(code)
         
         client = Client(auth)
