@@ -52,16 +52,19 @@ async def loginFlow(apiId: str, code: str):
     
     auth = AuthHandler(client_id, client_secret, redirect_url, Scope.identify())
     print(code)
-    auth.get_auth_token(code)
-    
-    client = Client(auth)
-    c.execute("INSERT INTO users (apiId, clientObject) VALUES (?, ?)", (apiId, json.dumps(auth.get_save_data())))
-    userdata = client.get_own_data()
-    return {
-        "username": userdata.username,
-        "userId": userdata.id,
-        "avatar": userdata.avatar_url
-    }
+    if code != None or code != "":
+        auth.get_auth_token(code)
+        
+        client = Client(auth)
+        c.execute("INSERT INTO users (apiId, clientObject) VALUES (?, ?)", (apiId, json.dumps(auth.get_save_data())))
+        userdata = client.get_own_data()
+        return {
+            "username": userdata.username,
+            "userId": userdata.id,
+            "avatar": userdata.avatar_url
+        }
+    else:
+        return {"error": "No code provided"}
 
 
 if __name__ == "__main__":
