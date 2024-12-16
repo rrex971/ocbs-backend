@@ -28,7 +28,7 @@ c, db = load_db()
 app = FastAPI()
 
 origins = [
-    "http://localhost:5173",
+    "http://localhost:5173", # for local development
     "https://ocbs.rrex.cc"  
 ]
 
@@ -42,12 +42,12 @@ app.add_middleware(
     max_age=3600,
 )
 
-@app.get("/")
+@app.get("/api/")
 async def root():
     return {"message": "Backend API for the OCBS website. Not for public use."}
 
 
-@app.get("/loginFlow")
+@app.get("/api/loginFlow")
 async def loginFlow(apiId: str, code: str):
     
     auth = AuthHandler(client_id, client_secret, redirect_url, Scope.identify())
