@@ -1,4 +1,6 @@
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+from fastapi.requests import Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from osu import Client, AuthHandler, Scope
@@ -15,10 +17,11 @@ redirect_url = os.getenv('redirect_uri')
 
 def load_db():
     global c, db
-    db = sqlite3.connect("data.db", check_same_thread=False, isolation_level=None)
+    db = sqlite3.connect("data.db", isolation_level=None)
     db.execute("PRAGMA journal_mode=WAL")
     c = db.cursor()
     c.execute("CREATE TABLE IF NOT EXISTS users (apiId TEXT, clientObject JSON)")
+    c.execute("CREATE TABLE IF NOT EXISTS registrations (username TEXT, userId TEXT, avatarurl TEXT, rank INTEGER, discordUsername TEXT, phoneNumber TEXT, paymentReceived BOOLEAN DEFAULT FALSE)")
     return c, db
 
 
@@ -66,6 +69,43 @@ async def loginFlow(apiId: str, code: str):
     else:
         return {"error": "No code provided"}
 
+@app.post("/api/registration")
+async def registration(request: Request):
+    data = await request.json()
+    api_id = data.get("api_id")
+    username = data.get("username")
+    user_id = data.get("id")
+    discord_username = data.get("discord_username")
+    phone_number = data.get("phone_number")
+
+    if not all([api_id, username, user_id, discord_username, phone_number]):
+        return JSONResponse(status_code=400, content={"error": "Missing registration data"})
+    userAuth = AuthHandler.from_save_data(json.loads(c.execute("SELECT clientObject FROM users WHERE apiId = ?", (api_id,)).fetchone()[0]))
+    client = Client(userAuth)
+    data = client.get_own_data()
+    avatar_url = data.avatar_url
+    rank = data.statistics.global_rank
+    c.execute("DELETE FROM users WHERE apiId = ?", (api_id,))
+    c.execute("INSERT INTO users (apiId, clientObject) VALUES (?, ?)", (api_id, json.dumps(userAuth.get_save_data()))) # refresh the auth token
+
+    c.execute("INSERT INTO registrations (username, userId, avatarurl, rank, discordUsername, phoneNumber) VALUES (?, ?, ?, ?, ?, ?)", (username, user_id, avatar_url, rank, discord_username, phone_number))
+
+    return JSONResponse(status_code=200, content={"message": "Registration successful"})
+
+@app.get("/api/registrations")
+async def registrations():
+    c.execute("SELECT * FROM registrations where paymentReceived = 1")
+    return c.fetchall()
+
+@app.get("/api/userExists")
+async def userExists(userId: str):
+    c.execute("SELECT * FROM registrations WHERE userId = ?", (userId,))
+    return c.fetchone() != None
+
+@app.get("/api/paymentStatus")
+async def paymentStatus(userId: str):
+    c.execute("SELECT paymentReceived FROM registrations WHERE userId = ?", (userId,))
+    return c.fetchone()[0]
 
 if __name__ == "__main__":
     import uvicorn
