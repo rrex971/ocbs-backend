@@ -21,7 +21,7 @@ def load_db():
     db.execute("PRAGMA journal_mode=WAL")
     c = db.cursor()
     c.execute("CREATE TABLE IF NOT EXISTS users (apiId TEXT, clientObject JSON)")
-    c.execute("CREATE TABLE IF NOT EXISTS registrations (username TEXT, userId TEXT, avatarurl TEXT, rank INTEGER, discordUsername TEXT, phoneNumber TEXT, paymentReceived BOOLEAN DEFAULT FALSE)")
+    c.execute("CREATE TABLE IF NOT EXISTS registrations (username TEXT, userId TEXT, avatarurl TEXT, rank INTEGER, discordUsername TEXT, paymentReceived BOOLEAN DEFAULT FALSE)")
     return c, db
 
 
@@ -88,14 +88,19 @@ async def registration(request: Request):
     c.execute("DELETE FROM users WHERE apiId = ?", (api_id,))
     c.execute("INSERT INTO users (apiId, clientObject) VALUES (?, ?)", (api_id, json.dumps(userAuth.get_save_data()))) # refresh the auth token
 
-    c.execute("INSERT INTO registrations (username, userId, avatarurl, rank, discordUsername, phoneNumber) VALUES (?, ?, ?, ?, ?, ?)", (username, user_id, avatar_url, rank, discord_username, phone_number))
-
+    c.execute("INSERT INTO registrations (username, userId, avatarurl, rank, discordUsername) VALUES (?, ?, ?, ?, ?)", (username, user_id, avatar_url, rank, discord_username))
+    file = open("registration.txt", "a");
+    file.write(f"{username}, {phone_number}\n")
+    file.close()
     return JSONResponse(status_code=200, content={"message": "Registration successful"})
 
 @app.get("/api/registrations")
 async def registrations():
-    c.execute("SELECT * FROM registrations where paymentReceived = 1")
-    return c.fetchall()
+    c.execute("SELECT * FROM registrations WHERE paymentReceived = 1")
+    rows = c.fetchall()
+    column_names = [description[0] for description in c.description]
+    response = [dict(zip(column_names, row)) for row in rows]
+    return JSONResponse(content=response)
 
 @app.get("/api/userExists")
 async def userExists(userId: str):
