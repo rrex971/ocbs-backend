@@ -96,7 +96,7 @@ async def registration(request: Request):
 
 @app.get("/api/registrations")
 async def registrations():
-    c.execute("SELECT * FROM registrations WHERE paymentReceived = 1")
+    c.execute("SELECT * FROM registrations WHERE paymentReceived = 1 ORDER BY rank")
     rows = c.fetchall()
     column_names = [description[0] for description in c.description]
     response = [dict(zip(column_names, row)) for row in rows]
