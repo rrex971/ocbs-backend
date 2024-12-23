@@ -110,7 +110,12 @@ async def userExists(userId: str):
 @app.get("/api/paymentStatus")
 async def paymentStatus(userId: str):
     c.execute("SELECT paymentReceived FROM registrations WHERE userId = ?", (userId,))
-    return c.fetchone()[0]
+    
+    res = c.fetchone()[0]
+    if res == None:
+        return JSONResponse(status_code=404, content={"error": "User doesn't exist"})
+    else:   
+        return res
 
 if __name__ == "__main__":
     import uvicorn
