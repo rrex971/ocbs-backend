@@ -2,8 +2,8 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.requests import Request
 from fastapi.middleware.cors import CORSMiddleware
-
-from osu import Client, AuthHandler, Scope
+import csv
+from osu import Client, AuthHandler, Scope, Mods
 from dotenv import load_dotenv
 import os
 import sqlite3
@@ -44,6 +44,38 @@ app.add_middleware(
     expose_headers=["Content-Range"],
     max_age=3600,
 )
+
+def OverallDifficultyToMs(OD):
+    return -6 * OD + 79.5
+def MsToOverallDifficulty(ms):
+    return (79.5 - ms) / 6
+def CalculateMultipliedOD(OD, multiplier):
+    newbpmMS = OverallDifficultyToMs(OD) / multiplier
+    newbpmOD = MsToOverallDifficulty(newbpmMS)
+    newbpmOD = round(newbpmOD*10)/10
+    return newbpmOD
+
+def getMapAttr(cs, hp, ar, od, bpm, mod):
+    if mod == Mods.HardRock:
+        cs *= 1.3
+        if cs>10:cs=10
+        hp *= 1.4
+        if hp>10:hp=10
+        ar *= 1.4
+        if ar>10:ar=10
+        od *= 1.4
+        if od>10:od=10
+    if mod == Mods.DoubleTime:
+        bpm *= 1.5
+        ar=round(((ar*2)+13)/3, 2)
+        od = CalculateMultipliedOD(od, 1.5)
+    return {
+        "ar" : round(ar, 2),
+        "od": round(od, 2),
+        "cs": round(cs, 2),
+        "hp": round(hp, 2),
+        "bpm": round(bpm, 2)
+    }
 
 @app.get("/api/")
 async def root():
@@ -116,6 +148,65 @@ async def paymentStatus(userId: str):
         return JSONResponse(status_code=404, content={"error": "User doesn't exist"})
     else:   
         return res[0]
+
+@app.get("/api/getMappools")
+async def getMappools(stage: int): # 0 = qualifiers, 1 = grand finals, 2 = testing
+    filename = ["qualifiers.json", "grandfinals.json", "testing.json"][stage]
+    try:
+        with open(filename, "r") as f:
+            return JSONResponse(content=json.load(f))
+    except FileNotFoundError:
+        return JSONResponse(content=load_map_pools(stage), status_code=201)
+
+def load_map_pools(stage: int):
+    
+    auth = AuthHandler(client_id, client_secret, redirect_url, Scope.identify())
+    auth.get_auth_token()
+    client = Client(auth)
+
+    mp = {
+        "NM": [],
+        "HD": [],
+        "HR": [],
+        "DT": [],
+        "TB": [],
+    }
+    filename = ["qualifiers.csv", "grandfinals.csv", "testing.csv"][stage]
+    with open(filename, "r") as f:
+        csvreader = csv.reader(f)
+        next(csvreader)
+        for row in csvreader:
+            mp[row[0]].append({
+                "pick": row[0]+str(row[1]),
+                "mapId": row[2],
+            })
+        
+        for pick in mp.keys():
+            for pickMap in mp[pick]:
+                mapInfo = client.get_beatmap(int(pickMap["mapId"]))
+                mod = Mods.get_from_abbreviation(pick) if pick not in ["TB", "NM"] else None
+                mapInfoAttr = client.get_beatmap_attributes(int(pickMap["mapId"]), mods=mod)
+                diffAttr = getMapAttr(cs=mapInfo.cs, hp=mapInfo.drain, ar=mapInfo.ar, od=mapInfo.accuracy, bpm=mapInfo.bpm, mod=mod)
+                pickMap["bg"]=mapInfo.beatmapset.background_url
+                pickMap["artist"] = mapInfo.beatmapset.artist
+                pickMap["title"] = mapInfo.beatmapset.title
+                pickMap["diff"] = mapInfo.version
+                pickMap["creator"] = mapInfo.beatmapset.creator
+                lgt = mapInfo.total_length if pick != "DT" else mapInfo.total_length//1.5
+                minutes, seconds = divmod(mapInfo.total_length, 60)
+                pickMap["length"] = f"{minutes}:{seconds:02d}"
+                pickMap["link"] = f"https://osu.ppy.sh/b/{mapInfo.id}"
+                pickMap["ar"]=diffAttr["ar"]
+                pickMap["cs"]=diffAttr["cs"]
+                pickMap["hp"]=diffAttr["hp"]
+                pickMap["od"]=diffAttr["od"]
+                pickMap["sr"]=round(mapInfoAttr.star_rating, 2)
+                pickMap["bpm"]=diffAttr["bpm"]
+    filename = ["qualifiers.json", "grandfinals.json", "testing.json"][stage]
+    with open(filename, "w") as f:
+        json.dump(mp, f)
+    return mp
+
 
 if __name__ == "__main__":
     import uvicorn
