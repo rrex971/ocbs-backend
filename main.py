@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.requests import Request
 from fastapi.middleware.cors import CORSMiddleware
 import csv
@@ -148,6 +148,44 @@ async def paymentStatus(userId: str):
         return JSONResponse(status_code=404, content={"error": "User doesn't exist"})
     else:   
         return res[0]
+@app.get("/api/mappacks")
+async def mappacks(stage: int):
+    try:
+        match stage:
+            case 0:
+                if os.path.exists("mappacks/qualifiers.zip"):
+                    return FileResponse("mappacks/qualifiers.zip", media_type="application/zip", filename="Qualifiers.zip")
+                else:
+                    raise FileNotFoundError
+            case 1:
+                if os.path.exists("mappacks/grandfinals.zip"):
+                    return FileResponse("mappacks/grandfinals.zip", media_type="application/zip", filename="Grand Finals.zip")
+                else:
+                    raise FileNotFoundError
+            case 2:
+                if os.path.exists("mappacks/testing.zip"):
+                    return FileResponse("mappacks/testing.zip", media_type="application/zip", filename="Testing.zip")
+                else:
+                    raise FileNotFoundError
+            case default:
+                return JSONResponse(content={"error": "Invalid stage"}, status_code=400)
+    except FileNotFoundError:
+        return JSONResponse(content={"error": "File not found"}, status_code=404)
+
+@app.get("/api/mappacks/{stage}")
+async def mappacks(stage: int):
+    try:
+        match stage:
+            case 0:
+                return FileResponse("mappacks/qualifiers.zip", media_type="application/zip")
+            case 1:
+                return FileResponse("mappacks/grandfinals.zip", media_type="application/zip")
+            case 2:
+                return FileResponse("mappacks/testing.zip", media_type="application/zip")
+            case default:
+                return JSONResponse(content={"error": "Invalid stage"}, status_code=400)
+    except:
+        return JSONResponse(content={"error": "File not found"}, status_code=404)
 
 @app.get("/api/getMappools")
 async def getMappools(stage: int): # 0 = qualifiers, 1 = grand finals, 2 = testing
@@ -174,7 +212,8 @@ def load_map_pools(stage: int):
     filename = ["qualifiers.csv", "grandfinals.csv", "testing.csv"][stage]
     with open(filename, "r") as f:
         csvreader = csv.reader(f)
-        next(csvreader)
+
+        head = next(csvreader)
         for row in csvreader:
             mp[row[0]].append({
                 "pick": row[0]+str(row[1]),
