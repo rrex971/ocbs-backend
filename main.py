@@ -172,20 +172,14 @@ async def mappacks(stage: int):
     except FileNotFoundError:
         return JSONResponse(content={"error": "File not found"}, status_code=404)
 
-@app.get("/api/mappacks/{stage}")
-async def mappacks(stage: int):
-    try:
-        match stage:
-            case 0:
-                return FileResponse("mappacks/qualifiers.zip", media_type="application/zip")
-            case 1:
-                return FileResponse("mappacks/grandfinals.zip", media_type="application/zip")
-            case 2:
-                return FileResponse("mappacks/testing.zip", media_type="application/zip")
-            case default:
-                return JSONResponse(content={"error": "Invalid stage"}, status_code=400)
-    except:
+
+@app.get("/api/package")
+async def package(): 
+    if os.path.exists("ocbs_osu_package.zip"):
+        return FileResponse("ocbs_osu_package.zip", media_type="application/zip")
+    else:
         return JSONResponse(content={"error": "File not found"}, status_code=404)
+
 
 @app.get("/api/getMappools")
 async def getMappools(stage: int): # 0 = qualifiers, 1 = grand finals, 2 = testing
